@@ -5,33 +5,56 @@ from pathlib import Path
 from database import database_helper as db
 import os
 
-'''GESTIRE NOME SOUND ERRATO IN HTTP REQUEST E ID ERRATO CON ECCEZIONI'''
-
 # sound dir into Raspberry Pi file system
 router = APIRouter()
 
-# Funzione per ottenere i nomi dei file audio disponibili nella directory
-# API to get list sounds
+
+# API endpoint to get a list sounds
 @router.get("/getSoundsList/")
 def list_audio_files():
-    list=db.get_sounds_list();
-    file_response = []
-    for elem in list:
-        # restituisce la lista dei file disponibili
-        file_response.append({"id": elem[0], "filename": elem[1]})
-    return file_response
+    list=db.get_sounds_list()
+    # Check if list id empty
+    if list:
+       file_response = []
+       for elem in list:
+           # returns json with list
+           file_response.append({"position": elem[1], "file_name": elem[2], "category": elem[4]})
+       file_response.sort(key=lambda x: x["position"])
+       return file_response
+    # if list is empty
+    if not list:
+       raise HTTPException(status_code=400, detail="Empty List")
+    else:
+       raise HTTPException(status_code=400, detail="Invalid Request")
+
+
+# API endpoint to get a list of sound by speified category
+@router.get("/getSoundsListByCategory/")
+def list_audio_files_by_category(category: str):
+    list=db.get_sounds_list_by_category(category)
+    # Checks if category inserted by user exists
+    if not db.category_is_valid(category):
+       raise HTTPException(status_code=400, detail='Invalid Category Name')
+    # Checks if category has sounds	
+    if list:
+        file_response = []
+        for elem in list:
+            # Returns json with list
+            file_response.append({"position": elem[1], "file_name": elem[2], "category": elem[4]})
+        file_response.sort(key=lambda x: x["position"])
+        return file_response
+    if not list:
+        raise HTTPException(status_code = 400, detail = 'No Sounds in ' + str(category))
+    else:
+        raise HTTPException(status_code = 400, detail = 'Bad Request')
+
 
 # API endpoint to get soound by ID  
-@router.get("/getSoundById/")
-def get_sound(id: str):
-    if db.check_sound_by_id(id):
-        # Sanifica l'input eliminando potenziali exploit
-        if ".." in id or "/" in id or "\\" in id:
-            raise HTTPException(status_code=400, detail="Invalid Request")
-        # Get sound from database
-        path = db.get_sound_by_id(id)[2]
-        file_path = Path(path).resolve() 
-        return FileResponse(file_path, media_type="audio/mpeg", filename=db.get_sound_by_id(id)[1])
+@router.get("/getSoundByPosition/")
+def get_sound(pos: str):
+    sound = db.get_sound_by_pos(pos)    
+    if sound is not None:
+        return FileResponse(path=sound[3], media_type='audio/mpeg', filename=sound[2])
     else:
         raise HTTPException(status_code=404, detail="File not found")
         return
@@ -40,14 +63,9 @@ def get_sound(id: str):
 # API endpoint to get sound by file_name
 @router.get("/getSoundByFileName/")
 def get_sound(file_name: str):
-    if db.check_sound_by_filename(file_name):
-        # Sanifica l'input eliminando potenziali exploit
-        if ".." in file_name or "/" in file_name or "\\" in file_name:
-            raise HTTPException(status_code=400, detail="Invalid Request")
-        # Get sound from database
-        path = db.get_sound_by_filename(file_name)[2]
-        file_path = Path(path).resolve() 
-        return FileResponse(file_path, media_type="audio/mpeg", filename=db.get_sound_by_filename(file_name)[1])
+    sound = db.get_sound_by_filename(file_name)
+    if sound is not None:
+        return FileResponse(path=sound[3], media_type="audio/mpeg", filename=sound[2])
     else:
         raise HTTPException(status_code=404, detail="File not found")
         return

@@ -4,6 +4,7 @@ import subprocess
 
 router = APIRouter()
 
+# API endpoint to reboot system
 @router.post("/reboot/")
 def reboot_system():
     try:
